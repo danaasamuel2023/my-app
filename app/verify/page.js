@@ -1,172 +1,118 @@
-// pages/wallet/verify.js
-'use client'
+// pages/verify-payment.js
 import { useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
 
-export default function VerifyPaymentPage() {
-  const [loading, setLoading] = useState(true);
-  const [status, setStatus] = useState(null);
-  const [reference, setReference] = useState(null);
-  const [error, setError] = useState('');
-  const [token, setToken] = useState('');
+export default function VerifyPayment() {
+  const [status, setStatus] = useState('processing');
+  const [message, setMessage] = useState('Verifying your payment...');
+  const [balance, setBalance] = useState(null);
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const { reference } = router.query;
 
   useEffect(() => {
-    // Get token from localStorage
-    const storedToken = localStorage.getItem('igettoken');
-    if (!storedToken) {
-      router.push('/login?redirect=/wallet');
-      return;
+    // Only run verification if we have a reference and are on client side
+    if (reference && typeof window !== 'undefined') {
+      verifyPayment(reference);
     }
-    
-    setToken(storedToken);
-    
-    // Get reference from URL parameters
-    const ref = searchParams.get('reference');
-    const trxStatus = searchParams.get('status');
-    
-    if (ref) {
-      setReference(ref);
-      
-      if (trxStatus) {
-        // If status is already provided in the URL
-        handleStatusResponse(trxStatus, ref);
-      } else {
-        // Otherwise verify the payment with the backend
-        verifyPayment(ref, storedToken);
-      }
-    } else {
-      setLoading(false);
-      setError('No payment reference found. Please try again or contact support.');
-    }
-  }, [router, searchParams]);
+  }, [reference]);
 
-  const verifyPayment = async (ref, authToken) => {
+  const verifyPayment = async (paymentRef) => {
     try {
-        const response = await fetch(`http://localhost:5000/api/verify?reference=${ref}`, {
-            method: 'GET', // You have this commented out, but it's good to be explicit
-            headers: {
-              'Authorization': `Bearer ${authToken}`,
-              'Content-Type': 'application/json'
-            }
-          });
-
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/wallet/verify-payment?reference=${paymentRef}`);
       const data = await response.json();
-      
-      if (data.success) {
-        handleStatusResponse('success', ref);
-      } else {
-        handleStatusResponse('failed', ref);
-      }
-    } catch (err) {
-      console.error('Error verifying payment:', err);
-      setLoading(false);
-      setStatus('error');
-      setError('Failed to verify payment. Please contact support with your reference number.');
-    }
-  };
 
-  const handleStatusResponse = (trxStatus, ref) => {
-    setStatus(trxStatus);
-    setLoading(false);
-    
-   
+      if (response.ok && data.success) {
+        // Payment successful
+        setStatus('success');
+        setMessage('Payment completed successfully!');
+        setBalance(data.balance);
+        
+        // Update user data in localStorage with new balance
+        const userData = JSON.parse(localStorage.getItem('userData'));
+        if (userData) {
+          userData.wallet = { ...userData.wallet, balance: data.balance };
+          localStorage.setItem('userData', JSON.stringify(userData));
+        }
+      } else {
+        // Payment failed
+        setStatus('failed');
+        setMessage(data.error || 'Payment verification failed');
+      }
+    } catch (error) {
+      console.error('Error verifying payment:', error);
+      setStatus('failed');
+      setMessage('An error occurred while verifying your payment');
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+    <>
       <Head>
-        <title>Verifying Payment | My Wallet</title>
-        <meta name="description" content="Verifying your payment" />
+        <title>Payment Verification | IGet</title>
       </Head>
-
-      <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8">
-        {loading ? (
-          <div className="text-center py-8">
-            <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto"></div>
-            <h2 className="mt-6 text-xl font-semibold text-gray-800">Verifying Your Payment</h2>
-            <p className="mt-2 text-gray-600">Please wait while we confirm your transaction...</p>
-            {reference && (
-              <p className="mt-4 text-sm text-gray-500">Reference: {reference}</p>
-            )}
+      <div className="max-w-md mx-auto p-6 bg-white rounded-lg shadow-md my-10 text-center">
+        <h1 className="text-2xl font-bold mb-6">Payment Verification</h1>
+        
+        {status === 'processing' && (
+          <div className="flex flex-col items-center justify-center py-8">
+            <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+            <p className="text-gray-700">{message}</p>
           </div>
-        ) : (
-          <div className="text-center">
-            {status === 'success' && (
-              <>
-                <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100">
-                  <svg className="h-10 w-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-                  </svg>
-                </div>
-                <h2 className="mt-4 text-xl font-semibold text-gray-800">Payment Successful!</h2>
-                <p className="mt-2 text-gray-600">Your wallet has been credited successfully.</p>
-                <p className="mt-4 text-sm text-gray-500">Reference: {reference}</p>
-                <div className="mt-6">
-                  <p className="text-sm text-gray-600">Redirecting to your wallet...</p>
-                  <div className="mt-4">
-                    <Link href="/wallet" className="text-blue-600 hover:text-blue-800 font-medium">
-                      Go to Wallet Now
-                    </Link>
-                  </div>
-                </div>
-              </>
+        )}
+        
+        {status === 'success' && (
+          <div className="py-8">
+            <div className="mb-4 text-green-500">
+              <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+            </div>
+            <h2 className="text-xl font-semibold text-green-700 mb-2">Payment Successful!</h2>
+            <p className="text-gray-700 mb-4">{message}</p>
+            {balance !== null && (
+              <p className="text-gray-700 mb-6">
+                Your new wallet balance: <span className="font-bold">{balance} GHS</span>
+              </p>
             )}
-
-            {status === 'failed' && (
-              <>
-                <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-100">
-                  <svg className="h-10 w-10 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
-                  </svg>
-                </div>
-                <h2 className="mt-4 text-xl font-semibold text-gray-800">Payment Failed</h2>
-                <p className="mt-2 text-gray-600">We couldn't complete your transaction.</p>
-                <p className="mt-4 text-sm text-gray-500">Reference: {reference}</p>
-                <div className="mt-6 space-y-3">
-                  <p className="text-sm text-gray-600">Redirecting to your wallet...</p>
-                  <div className="flex flex-col space-y-2">
-                    <Link href="/wallet/deposit" className="text-blue-600 hover:text-blue-800 font-medium">
-                      Try Again
-                    </Link>
-                    <Link href="/wallet" className="text-blue-600 hover:text-blue-800 font-medium">
-                      Go to Wallet
-                    </Link>
-                  </div>
-                </div>
-              </>
-            )}
-
-            {status === 'error' && (
-              <>
-                <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-yellow-100">
-                  <svg className="h-10 w-10 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                  </svg>
-                </div>
-                <h2 className="mt-4 text-xl font-semibold text-gray-800">Verification Error</h2>
-                <p className="mt-2 text-gray-600">{error}</p>
-                {reference && (
-                  <p className="mt-4 text-sm text-gray-500">Reference: {reference}</p>
-                )}
-                <div className="mt-6 space-y-3">
-                  <div className="flex flex-col space-y-2">
-                    <Link href="/wallet" className="text-blue-600 hover:text-blue-800 font-medium">
-                      Return to Wallet
-                    </Link>
-                    <Link href="/contact" className="text-blue-600 hover:text-blue-800 font-medium">
-                      Contact Support
-                    </Link>
-                  </div>
-                </div>
-              </>
-            )}
+            <div className="flex justify-center space-x-4">
+              <Link href="/wallet" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                Go to Wallet
+              </Link>
+              <Link href="/dashboard" className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">
+                Dashboard
+              </Link>
+            </div>
+          </div>
+        )}
+        
+        {status === 'failed' && (
+          <div className="py-8">
+            <div className="mb-4 text-red-500">
+              <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+            </div>
+            <h2 className="text-xl font-semibold text-red-700 mb-2">Payment Failed</h2>
+            <p className="text-gray-700 mb-6">{message}</p>
+            <div className="flex justify-center space-x-4">
+              <Link href="/wallet/deposit" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                Try Again
+              </Link>
+              <Link href="/wallet" className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">
+                Go to Wallet
+              </Link>
+            </div>
+          </div>
+        )}
+        
+        {reference && (
+          <div className="mt-6 text-sm text-gray-500">
+            Transaction Reference: {reference}
           </div>
         )}
       </div>
-    </div>
+    </>
   );
 }

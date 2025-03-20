@@ -73,13 +73,7 @@ const BundleFilter = () => {
   };
   
   const handlePurchase = async () => {
-    if (!validatePhone(recipientNumber)) {
-      setPurchaseStatus({
-        success: false,
-        message: 'Please enter a valid phone number'
-      });
-      return;
-    }
+   
     
     setProcessingOrder(true);
     
