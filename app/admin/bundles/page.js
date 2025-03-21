@@ -416,7 +416,7 @@ const BundleManagement = () => {
                     {bundles.map((bundle) => (
                       <tr key={bundle._id}>
                         {editingBundle === bundle._id ? (
-                          // Edit mode
+                          // Edit mod
                           <>
                             <td className="py-2 px-4 border-b border-gray-200">
                               <input
@@ -472,7 +472,7 @@ const BundleManagement = () => {
                                 onClick={() => handleDeactivateBundle(bundle._id)}
                                 className="text-red-600 hover:text-red-800"
                               >
-                                Deactivate
+                                Deactivat
                               </button>
                             </td>
                           </>
